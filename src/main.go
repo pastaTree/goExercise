@@ -1,27 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"io"
+	"log"
+)
 
-func trace(s string) string {
-	fmt.Println("entering:", s)
-	return s
-}
-
-func un(s string) {
-	fmt.Println("leaving:", s)
-}
-
-func a() {
-	defer un(trace("a"))
-	fmt.Println("in a")
-}
-
-func b() {
-	defer un(trace("b"))
-	fmt.Println("in b")
-	a()
+func func1(s string) (n int, err error) {
+	defer func() {
+		log.Printf("func1(%q) = %d, %v", s, n, err)
+		// 1. notice the last "()"
+	}()
+	// 2. compare the difference
+	//defer log.Printf("func1(%q) = %d, %v", s, n, err)
+	return 7, io.EOF
 }
 
 func main() {
-	b()
+	_, _ = func1("Go")
 }
