@@ -2,26 +2,26 @@ package main
 
 import "fmt"
 
+func trace(s string) string {
+	fmt.Println("entering:", s)
+	return s
+}
+
+func un(s string) {
+	fmt.Println("leaving:", s)
+}
+
+func a() {
+	defer un(trace("a"))
+	fmt.Println("in a")
+}
+
+func b() {
+	defer un(trace("b"))
+	fmt.Println("in b")
+	a()
+}
+
 func main() {
-	doDBOperations()
-}
-
-func connectToDB() {
-	fmt.Println("ok, connected to db")
-}
-
-func disconnectFromDB() {
-	fmt.Println("Defering the database disconnect.")
-	fmt.Println("ok, disconnected from db")
-}
-
-func doDBOperations() {
-	connectToDB()
-	defer disconnectFromDB() //function called with defer
-	fmt.Println("Doing some DB operations ...")
-	fmt.Println("Oops! some crash or network error ...")
-	fmt.Println("Returning from function here!")
-	return //terminate the program
-	// deferred function executed here just before actually returning, even if
-	// there is a return or abnormal termination before
+	b()
 }
