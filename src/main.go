@@ -1,57 +1,27 @@
 package main
 
-import (
-	"fmt"
-	"math"
-	"math/rand"
-	"time"
-)
-
-type ByteSize float64
-const (
-	_ = iota
-	KB ByteSize = 1<<(10*iota)
-	MB
-	GB
-	TB
-	PB
-	EB
-	ZB
-	YB
-)
+import "fmt"
 
 func main() {
-	Random()
-    n := 20.1
-    _ = IntFromFloat64(n)
+	doDBOperations()
 }
 
-func IntFromFloat64(x float64) int {
-	if math.MinInt32 <= x && x <= math.MaxInt32 {
-		whole, fraction := math.Modf(x)
-		if fraction >= 0.5 {
-			whole++
-		}
-		return int(whole)
-	}
-	panic(fmt.Sprintf("%g is out of int32 range", x))
+func connectToDB() {
+	fmt.Println("ok, connected to db")
 }
 
-func Random() {
-	for i := 0; i < 10; i++ {
-		a := rand.Int()
-		fmt.Printf("%d / ", a)
-	}
+func disconnectFromDB() {
+	fmt.Println("Defering the database disconnect.")
+	fmt.Println("ok, disconnected from db")
+}
 
-	for i := 0; i < 5; i++ {
-		r := rand.Intn(8)
-		fmt.Printf("%d / ", r)
-	}
-
-	fmt.Println()
-	timens := int64(time.Now().Nanosecond())
-	rand.Seed(timens)
-	for i := 0; i < 10; i++ {
-		fmt.Printf("%2.2f / ", 100*rand.Float32())
-	}
+func doDBOperations() {
+	connectToDB()
+	defer disconnectFromDB() //function called with defer
+	fmt.Println("Doing some DB operations ...")
+	fmt.Println("Oops! some crash or network error ...")
+	fmt.Println("Returning from function here!")
+	return //terminate the program
+	// deferred function executed here just before actually returning, even if
+	// there is a return or abnormal termination before
 }
