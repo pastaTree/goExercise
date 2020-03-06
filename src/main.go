@@ -1,20 +1,22 @@
 package main
 
 import (
-	"io"
-	"log"
+	"fmt"
+	"strings"
 )
 
-func func1(s string) (n int, err error) {
-	defer func() {
-		log.Printf("func1(%q) = %d, %v", s, n, err)
-		// 1. notice the last "()"
-	}()
-	// 2. compare the difference
-	//defer log.Printf("func1(%q) = %d, %v", s, n, err)
-	return 7, io.EOF
+func main() {
+	a := makeAddSuffix(".jpeg")
+	b := makeAddSuffix(".png")
+	fmt.Println(a("pic1"))
+	fmt.Println(b("pic2"))
 }
 
-func main() {
-	_, _ = func1("Go")
+func makeAddSuffix(suffix string) func(fileName string) string {
+	return func(fileName string) string {
+		if !strings.HasSuffix(fileName, suffix) {
+			return fileName + suffix
+		}
+		return fileName
+	}
 }
