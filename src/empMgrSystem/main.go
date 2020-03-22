@@ -1,12 +1,13 @@
 package main
 
 import (
+	"empMgrSystem"
 	"fmt"
 	"os"
 )
 
 var (
-	empMgrSys ems
+	empMgrSys empMgrSystem.ems
 )
 
 func showMenu() {
@@ -21,8 +22,8 @@ func showMenu() {
 }
 
 func main() {
-	empMgrSys = ems{
-		employee: make(map[int]employee, 100),
+	empMgrSys = empMgrSystem.ems{
+		employee: make(map[int]empMgrSystem.employee, 100),
 	}
 	for {
 		showMenu()
