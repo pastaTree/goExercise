@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+var (
+	MaxSize = 50000
+)
+
 // Logger 日志结构体
 type fileLogger struct {
 	Level logLevel
@@ -15,6 +19,16 @@ type fileLogger struct {
 	fileObj *os.File
 	errFileObj *os.File
 	maxFileSize int64
+	logChan chan *logMsg
+}
+
+type logMsg struct {
+	Level logLevel
+	msg string
+	fileName string
+	funcName string
+	timestamp string
+	line int
 }
 
 // NewFileLog 构造函数
@@ -28,6 +42,7 @@ func NewFileLog(levelStr, fp, fn string, maxFileSize int64) *fileLogger {
 		filePath: fp,
 		fileName: fn,
 		maxFileSize: maxFileSize,
+		logChan: make(chan *logMsg, MaxSize),
 	}
 	err = f.initFile()
 	if err != nil {
@@ -50,6 +65,10 @@ func (f *fileLogger) initFile() error {
 	}
 	f.fileObj = fileObj
 	f.errFileObj = errFileObj
+	// 开启5个 goroutine 去写日志
+	for i := 0; i < 5; i++ {
+		go f.writeLogBackground()
+	}
 	return nil
 }
 
@@ -101,13 +120,13 @@ func (f *fileLogger) splitFile(file *os.File) (*os.File, error) {
 	return fileObj, nil
 }
 
-// 记录日志的方法
-func (f *fileLogger) log(level logLevel, format string, a ...interface{}) {
-	if f.enable(level) {
-		msg := fmt.Sprintf(format, a...)
-		now := time.Now()
-		funcName, fileName, lineNum := getInfo(3)
-		levelStr := parseLogLevel(level)
+func (f *fileLogger) writeLogBackground() {
+	for {
+		// TODO: 此处存在 Race Condition!
+		// TODO: 多个 Goroutine 向同一文件添加内容, 假如文件超过最大限制,
+		// TODO: 则在关闭当前 log 创建新 log 的瞬间, 会影响其他正在工作的
+		// TODO: Goroutine.
+		// 检查是否需要切割
 		if f.checkSize(*f.fileObj) {
 			newFileObj, err := f.splitFile(f.fileObj)
 			if err != nil {
@@ -115,18 +134,50 @@ func (f *fileLogger) log(level logLevel, format string, a ...interface{}) {
 			}
 			f.fileObj = newFileObj
 		}
-		fmt.Fprintf(f.fileObj, "[%s] [%s] [File:%s, Func:%s, Line:%d] %s\n", now.Format("2006-01-01 01:02:03"), levelStr, fileName, funcName, lineNum, msg)
-		if level >= ERROR {
-			if f.checkSize(*f.errFileObj) {
-				newFileObj, err := f.splitFile(f.errFileObj)
-				if err != nil {
-					return
+
+		select {
+		case logTmp := <- f.logChan:
+			logInfo := fmt.Sprintf("[%s] [%s] [File:%s, Func:%s, Line:%d] %s\n", logTmp.timestamp, parseLogLevel(logTmp.Level), logTmp.fileName, logTmp.funcName, logTmp.line, logTmp.msg)
+			fmt.Fprintf(f.fileObj, logInfo)
+			if logTmp.Level >= ERROR {
+				if f.checkSize(*f.errFileObj) {
+					newFileObj, err := f.splitFile(f.errFileObj)
+					if err != nil {
+						return
+					}
+					f.errFileObj = newFileObj
 				}
-				f.errFileObj = newFileObj
+				// 如果要记录的日志 >= ERROR级别
+				// 还需要在ERROR日志中再记录一遍
+				fmt.Fprintf(f.errFileObj, logInfo)
 			}
-			// 如果要记录的日志 >= ERROR级别
-			// 还需要在ERROR日志中再记录一遍
-			fmt.Fprintf(f.errFileObj, "[%s] [%s] [File:%s, Func:%s, Line:%d] %s\n", now.Format("2006-01-01 01:02:03"), levelStr, fileName, funcName, lineNum, msg)
+		default:
+			// 取不出日志就休息半秒钟
+			time.Sleep(time.Millisecond * 500)
+		}
+	}
+}
+
+// 记录日志的方法
+func (f *fileLogger) log(level logLevel, format string, a ...interface{}) {
+	if f.enable(level) {
+		msg := fmt.Sprintf(format, a...)
+		now := time.Now()
+		funcName, fileName, lineNum := getInfo(3)
+		// 先把日志发送到通道中
+		// 1. 造一个logMsg对象
+		logTmp := &logMsg{
+			Level:     level,
+			msg:       msg,
+			fileName:  fileName,
+			funcName:  funcName,
+			timestamp: now.Format("2006-01-01 01:02:03"),
+			line:      lineNum,
+		}
+		// 2. 通过 IO 复用判断 channel 是否可以写入
+		select {
+		case f.logChan <- logTmp:
+		default: // 把日志丢弃保证不出现阻塞
 		}
 	}
 }
